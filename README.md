@@ -1,4 +1,5 @@
-# Welcome to your Lovable project
+# OPMAZE -ERP AI 
+Helps in enterprise resource planning and optimization
 
 ## Project info
 
@@ -13,6 +14,8 @@ There are several ways of editing your application.
 Simply visit the [Lovable Project](https://lovable.dev/projects/20c2612a-a931-46f6-9684-90189819837a) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
+
+
 
 **Use your preferred IDE**
 
