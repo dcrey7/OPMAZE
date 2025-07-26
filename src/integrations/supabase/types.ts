@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignments: {
+        Row: {
+          created_at: string | null
+          employee_id: string | null
+          end_time: string
+          id: number
+          notes: string | null
+          product_code: string | null
+          start_time: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          employee_id?: string | null
+          end_time: string
+          id?: number
+          notes?: string | null
+          product_code?: string | null
+          start_time: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          employee_id?: string | null
+          end_time?: string
+          id?: number
+          notes?: string | null
+          product_code?: string | null
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "assignments_product_code_fkey"
+            columns: ["product_code"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_code"]
+          },
+        ]
+      }
+      constraints: {
+        Row: {
+          active: boolean | null
+          constraint_type: string
+          created_at: string | null
+          description: string
+          id: number
+          parameters: Json | null
+          priority: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          constraint_type: string
+          created_at?: string | null
+          description: string
+          id?: number
+          parameters?: Json | null
+          priority?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          constraint_type?: string
+          created_at?: string | null
+          description?: string
+          id?: number
+          parameters?: Json | null
+          priority?: number | null
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           available_monday: boolean | null
@@ -113,6 +194,39 @@ export type Database = {
           name?: string | null
           priority?: number | null
           product_code?: string | null
+        }
+        Relationships: []
+      }
+      resources: {
+        Row: {
+          capacity: number | null
+          created_at: string | null
+          id: number
+          maintenance_schedule: Json | null
+          name: string
+          resource_id: string
+          status: string | null
+          type: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string | null
+          id?: number
+          maintenance_schedule?: Json | null
+          name: string
+          resource_id: string
+          status?: string | null
+          type: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string | null
+          id?: number
+          maintenance_schedule?: Json | null
+          name?: string
+          resource_id?: string
+          status?: string | null
+          type?: string
         }
         Relationships: []
       }
