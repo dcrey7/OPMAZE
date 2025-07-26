@@ -16,10 +16,10 @@ const Index = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
-            Cronos AI Dashboard
+            Opimaze
           </h1>
           <p className="text-muted-foreground text-lg">
-            Production Scheduling & Resource Management
+            AI-Powered Production Optimization & Scheduling
           </p>
         </div>
 

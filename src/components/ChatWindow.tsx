@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Clock, AlertTriangle } from "lucide-react";
+import { Send, Bot, User, Clock, AlertTriangle, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { chatWithAI, optimizeSchedule } from "@/services/anthropic";
 
 interface Message {
   id: string;
@@ -13,6 +14,8 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   constraints?: any;
+  pythonScript?: string;
+  isOptimization?: boolean;
 }
 
 const ChatWindow = () => {
@@ -50,13 +53,41 @@ const ChatWindow = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputMessage;
     setInputMessage("");
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual AI API call to Claude via lovable.dev
-      // For now, simulate AI response with scheduling logic
-      const aiResponse = await simulateAIResponse(inputMessage);
+      let aiResponse: any;
+      const isOptimizationRequest = currentInput.toLowerCase().includes('optimize') || 
+                                   currentInput.toLowerCase().includes('schedule') ||
+                                   currentInput.toLowerCase().includes('generate schedule');
+
+      if (isOptimizationRequest) {
+        // Load all data for optimization
+        const [employeesRes, productsRes, materialsRes, resourcesRes, constraintsRes] = await Promise.all([
+          supabase.from('employees').select('*'),
+          supabase.from('products').select('*'),
+          supabase.from('materials').select('*'),
+          supabase.from('resources').select('*'),
+          supabase.from('constraints').select('*').eq('active', true)
+        ]);
+
+        const optimizationRequest = {
+          userPrompt: currentInput,
+          csvData: [], // Add any specific CSV data if uploaded
+          constraints: constraintsRes.data || [],
+          employees: employeesRes.data || [],
+          products: productsRes.data || [],
+          materials: materialsRes.data || [],
+          resources: resourcesRes.data || []
+        };
+
+        aiResponse = await optimizeSchedule(optimizationRequest);
+      } else {
+        // Regular chat
+        aiResponse = { content: await chatWithAI(currentInput) };
+      }
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -64,6 +95,8 @@ const ChatWindow = () => {
         sender: 'ai',
         timestamp: new Date(),
         constraints: aiResponse.constraints,
+        pythonScript: aiResponse.pythonScript,
+        isOptimization: isOptimizationRequest,
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -76,7 +109,7 @@ const ChatWindow = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to get AI response. Please try again.",
+        description: "Failed to get AI response. Please check your API key and try again.",
         variant: "destructive",
       });
     } finally {
@@ -84,74 +117,6 @@ const ChatWindow = () => {
     }
   };
 
-  const simulateAIResponse = async (userInput: string): Promise<{content: string, constraints?: any}> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const input = userInput.toLowerCase();
-    
-    if (input.includes('constraint') || input.includes('rule')) {
-      return {
-        content: "I can help you define scheduling constraints. Here are some common types:\n\n• **Employee Availability**: Ensure workers are only scheduled during their available hours\n• **Machine Capacity**: Limit concurrent jobs per machine\n• **Material Dependencies**: Schedule based on material availability\n• **Priority Ordering**: Higher priority jobs scheduled first\n\nWhat specific constraint would you like to add?",
-        constraints: {
-          type: 'general_info',
-          description: 'Constraint types overview'
-        }
-      };
-    }
-    
-    if (input.includes('employee') || input.includes('worker')) {
-      return {
-        content: "I'll create employee availability constraints. This ensures workers are only assigned tasks during their available shifts and days.\n\nConstraint added: Employee availability matching",
-        constraints: {
-          type: 'employee_availability',
-          description: 'Match employee assignments with their availability',
-          parameters: {
-            enforce_availability: true,
-            check_shift_times: true
-          }
-        }
-      };
-    }
-    
-    if (input.includes('machine') || input.includes('resource')) {
-      return {
-        content: "I'll set up machine capacity constraints. This prevents overbooking of equipment and ensures realistic scheduling.\n\nConstraint added: Machine capacity limits",
-        constraints: {
-          type: 'machine_capacity',
-          description: 'Limit concurrent jobs per machine based on capacity',
-          parameters: {
-            respect_capacity: true,
-            allow_queue: true
-          }
-        }
-      };
-    }
-    
-    if (input.includes('priority') || input.includes('urgent')) {
-      return {
-        content: "I'll implement priority-based scheduling. Higher priority jobs will be scheduled before lower priority ones.\n\nConstraint added: Priority-based ordering",
-        constraints: {
-          type: 'priority_ordering',
-          description: 'Schedule high priority jobs first',
-          parameters: {
-            priority_weight: 0.8,
-            strict_ordering: false
-          }
-        }
-      };
-    }
-    
-    if (input.includes('optimize') || input.includes('schedule')) {
-      return {
-        content: "I can help optimize your production schedule using various algorithms:\n\n• **Minimize Makespan**: Reduce total completion time\n• **Maximize Utilization**: Keep resources busy\n• **Balance Workload**: Even distribution across workers\n• **Meet Deadlines**: Prioritize on-time delivery\n\nWhich optimization goal is most important for your production?",
-      };
-    }
-
-    return {
-      content: "I understand you're looking for help with production scheduling. I can assist with:\n\n• Setting up scheduling constraints\n• Optimizing resource allocation\n• Managing employee availability\n• Balancing workloads\n• Meeting production deadlines\n\nWhat specific aspect would you like to focus on?",
-    };
-  };
 
   const saveConstraints = async (constraints: any) => {
     try {
@@ -209,7 +174,26 @@ const ChatWindow = () => {
                       <div className="text-sm whitespace-pre-wrap">
                         {message.content}
                       </div>
-                      {message.constraints && (
+                      {message.isOptimization && (
+                        <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/20 rounded text-xs">
+                          <div className="flex items-center gap-1 text-green-700 dark:text-green-300">
+                            <Zap className="h-3 w-3" />
+                            Optimization Complete
+                          </div>
+                        </div>
+                      )}
+                      {message.pythonScript && (
+                        <div className="mt-2 p-2 bg-blue-100 dark:bg-blue-900/20 rounded text-xs">
+                          <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 mb-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Python Script Generated
+                          </div>
+                          <pre className="text-xs bg-gray-800 text-green-400 p-2 rounded overflow-x-auto max-h-32">
+                            {message.pythonScript}
+                          </pre>
+                        </div>
+                      )}
+                      {message.constraints && !message.isOptimization && (
                         <div className="mt-2 p-2 bg-accent/20 rounded text-xs">
                           <div className="flex items-center gap-1 text-accent">
                             <AlertTriangle className="h-3 w-3" />
