@@ -106,6 +106,11 @@ const ChatWindow = () => {
         await saveConstraints(aiResponse.constraints);
       }
 
+      // If schedule was optimized, save assignments to database
+      if (aiResponse.schedule && aiResponse.schedule.length > 0) {
+        await saveOptimizedSchedule(aiResponse.schedule, aiResponse.executionResult);
+      }
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -138,6 +143,61 @@ const ChatWindow = () => {
       });
     } catch (error: any) {
       console.error('Error saving constraints:', error);
+    }
+  };
+
+  const saveOptimizedSchedule = async (schedule: any[], optimizationResults?: any) => {
+    try {
+      // Clear existing scheduled assignments to replace with optimized ones
+      await supabase.from('assignments').delete().eq('status', 'scheduled');
+
+      // Clean the schedule data to match database schema
+      const cleanedSchedule = schedule.map(item => ({
+        employee_id: item.employee_id,
+        product_code: item.product_code,
+        start_time: item.start_time,
+        end_time: item.end_time,
+        status: item.status || 'scheduled',
+        notes: item.notes || ''
+      }));
+
+      console.log('Attempting to insert schedule:', cleanedSchedule.slice(0, 2)); // Log first 2 items for debugging
+
+      // Insert new optimized assignments
+      const { error } = await supabase
+        .from('assignments')
+        .insert(cleanedSchedule);
+
+      if (error) {
+        console.error('Database insertion error:', error);
+        throw error;
+      }
+
+      // Store optimization results for analytics
+      if (optimizationResults?.optimization_stats) {
+        localStorage.setItem('optimizationStats', JSON.stringify({
+          ...optimizationResults.optimization_stats,
+          task_breakdown: optimizationResults.task_breakdown,
+          timestamp: new Date().toISOString()
+        }));
+      }
+
+      toast({
+        title: "🎯 Schedule Optimized!",
+        description: `${schedule.length} detailed tasks scheduled across ${optimizationResults?.optimization_stats?.days_covered || 'multiple'} days. Check Calendar & Analytics!`,
+      });
+
+      // Trigger both calendar and analytics refresh
+      window.dispatchEvent(new CustomEvent('scheduleUpdated'));
+      window.dispatchEvent(new CustomEvent('analyticsUpdated'));
+      
+    } catch (error: any) {
+      console.error('Error saving schedule:', error);
+      toast({
+        title: "Schedule Save Error",
+        description: `Database error: ${error.message || 'Unknown error occurred'}`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -178,7 +238,7 @@ const ChatWindow = () => {
                         <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/20 rounded text-xs">
                           <div className="flex items-center gap-1 text-green-700 dark:text-green-300">
                             <Zap className="h-3 w-3" />
-                            Optimization Complete
+                            Optimization Complete - Check Calendar Tab
                           </div>
                         </div>
                       )}
@@ -250,9 +310,29 @@ const ChatWindow = () => {
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Press Enter to send. The AI will help you define scheduling constraints and optimization parameters.
-        </p>
+        <div className="text-xs text-muted-foreground mt-2">
+          <p>Press Enter to send. Try these optimization prompts:</p>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <button 
+              className="px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800"
+              onClick={() => setInputMessage("Optimize my production schedule for this week with detailed task breakdown")}
+            >
+              📊 Weekly Optimization
+            </button>
+            <button 
+              className="px-2 py-1 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-800"
+              onClick={() => setInputMessage("Create a priority-based schedule that maximizes efficiency")}
+            >
+              🎯 Priority Scheduling
+            </button>
+            <button 
+              className="px-2 py-1 bg-purple-100 dark:bg-purple-900 rounded text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+              onClick={() => setInputMessage("Balance workload across all employees and minimize overtime")}
+            >
+              ⚖️ Load Balancing
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

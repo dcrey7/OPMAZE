@@ -87,40 +87,49 @@ Generate a Python script using OR-Tools that I can execute to get the optimized 
     let executionResult = null;
     let schedule = null;
 
-    // If Python script was generated, try to execute it
-    if (pythonScript) {
-      try {
-        executionResult = await executePythonScript(pythonScript, {
-          employees: request.employees,
-          products: request.products,
-          materials: request.materials,
-          resources: request.resources,
-          constraints: request.constraints
-        });
+    // Always try to run OR-Tools optimization regardless of Python script
+    try {
+      console.log('Running OR-Tools optimization with data:', {
+        employees: request.employees.length,
+        products: request.products.length,
+        resources: request.resources.length,
+        constraints: request.constraints.length
+      });
 
-        if (executionResult.success && executionResult.result) {
-          schedule = executionResult.result;
-        }
-      } catch (error) {
-        console.error('Failed to execute Python script:', error);
-        // Continue without execution results
+      const optimizationResult = await optimizeScheduleWithORTools({
+        employees: request.employees,
+        products: request.products,
+        resources: request.resources,
+        constraints: request.constraints
+      });
+
+      console.log('OR-Tools result:', optimizationResult);
+
+      if (optimizationResult.success && optimizationResult.schedule) {
+        schedule = optimizationResult.schedule;
+        executionResult = optimizationResult;
+        console.log('Schedule generated with', schedule.length, 'assignments');
       }
-    } else {
-      // Fallback to direct OR-Tools optimization
-      try {
-        const optimizationResult = await optimizeScheduleWithORTools({
-          employees: request.employees,
-          products: request.products,
-          resources: request.resources,
-          constraints: request.constraints
-        });
+    } catch (error) {
+      console.error('Failed to run OR-Tools optimization:', error);
+      
+      // If OR-Tools fails, try executing Python script if available
+      if (pythonScript) {
+        try {
+          executionResult = await executePythonScript(pythonScript, {
+            employees: request.employees,
+            products: request.products,
+            materials: request.materials,
+            resources: request.resources,
+            constraints: request.constraints
+          });
 
-        if (optimizationResult.success) {
-          schedule = optimizationResult.schedule;
-          executionResult = optimizationResult;
+          if (executionResult.success && executionResult.result) {
+            schedule = executionResult.result;
+          }
+        } catch (scriptError) {
+          console.error('Failed to execute Python script:', scriptError);
         }
-      } catch (error) {
-        console.error('Failed to run OR-Tools optimization:', error);
       }
     }
 

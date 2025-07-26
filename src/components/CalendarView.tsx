@@ -69,17 +69,33 @@ const CalendarView = () => {
       setEmployees(employeesRes.data || []);
       setProducts(productsRes.data || []);
 
-      // Transform assignments to calendar events
+      // Transform assignments to calendar events with detailed descriptions
       const calendarEvents: CalendarEvent[] = (assignmentsRes.data || []).map((assignment: Assignment) => {
         const employee = employeesRes.data?.find(emp => emp.employee_id === assignment.employee_id);
         const product = productsRes.data?.find(prod => prod.product_code === assignment.product_code);
         
+        const startTime = moment(assignment.start_time);
+        const endTime = moment(assignment.end_time);
+        const duration = moment.duration(endTime.diff(startTime));
+        
+        // Create detailed title with time and description
+        const title = `🏭 ${product?.name || assignment.product_code}
+👤 ${employee?.name || assignment.employee_id}
+⏱️ ${duration.asHours()}h (${startTime.format('HH:mm')}-${endTime.format('HH:mm')})
+📊 Priority: ${product?.priority || 'N/A'}`;
+        
         return {
           id: assignment.id,
-          title: `${employee?.name || assignment.employee_id} - ${product?.name || assignment.product_code}`,
+          title: title,
           start: new Date(assignment.start_time),
           end: new Date(assignment.end_time),
-          resource: assignment
+          resource: {
+            ...assignment,
+            employee_name: employee?.name,
+            product_name: product?.name,
+            product_priority: product?.priority,
+            department: employee?.department
+          }
         };
       });
 
@@ -95,6 +111,19 @@ const CalendarView = () => {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    // Listen for schedule updates from AI optimization
+    const handleScheduleUpdate = () => {
+      loadData();
+    };
+
+    window.addEventListener('scheduleUpdated', handleScheduleUpdate);
+    
+    return () => {
+      window.removeEventListener('scheduleUpdated', handleScheduleUpdate);
+    };
   }, [loadData]);
 
   const handleSelectEvent = (event: CalendarEvent) => {
@@ -218,31 +247,64 @@ const CalendarView = () => {
 
   const eventStyleGetter = (event: CalendarEvent) => {
     let backgroundColor = '#3B82F6';
+    let borderColor = '#1E40AF';
     
     switch (event.resource.status) {
       case 'completed':
         backgroundColor = '#10B981';
+        borderColor = '#047857';
         break;
       case 'in_progress':
         backgroundColor = '#F59E0B';
+        borderColor = '#D97706';
         break;
       case 'delayed':
         backgroundColor = '#EF4444';
+        borderColor = '#DC2626';
         break;
       default:
         backgroundColor = '#3B82F6';
+        borderColor = '#1E40AF';
+    }
+
+    // Different colors based on priority
+    if (event.resource.product_priority === 1) {
+      backgroundColor = '#DC2626'; // High priority - red
+      borderColor = '#B91C1C';
+    } else if (event.resource.product_priority === 2) {
+      backgroundColor = '#F59E0B'; // Medium priority - orange
+      borderColor = '#D97706';
     }
 
     return {
       style: {
         backgroundColor,
-        borderRadius: '4px',
-        opacity: 0.8,
+        borderLeft: `4px solid ${borderColor}`,
+        borderRadius: '6px',
+        opacity: 0.9,
         color: 'white',
-        border: '0px',
-        display: 'block'
+        border: '1px solid rgba(255,255,255,0.3)',
+        display: 'block',
+        fontSize: '11px',
+        lineHeight: '1.2',
+        padding: '2px 4px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }
     };
+  };
+
+  // Custom event component for better display
+  const CustomEvent = ({ event }: { event: any }) => {
+    const lines = event.title.split('\n');
+    return (
+      <div className="text-xs leading-tight">
+        {lines.map((line: string, index: number) => (
+          <div key={index} className="truncate">
+            {line}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -253,6 +315,27 @@ const CalendarView = () => {
           <CalendarIcon className="h-5 w-5 text-primary" />
           <h3 className="text-lg font-semibold">Production Schedule</h3>
           <Badge variant="secondary">{events.length} assignments</Badge>
+        </div>
+        
+        {/* Color Legend */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Legend:</span>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-600 rounded"></div>
+            <span>High Priority</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-orange-500 rounded"></div>
+            <span>Medium Priority</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-600 rounded"></div>
+            <span>Normal</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-600 rounded"></div>
+            <span>Completed</span>
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
@@ -387,6 +470,8 @@ const CalendarView = () => {
               views={['month', 'week', 'day']}
               step={60}
               showMultiDayTimes
+              popup
+              popupOffset={30}
               components={{
                 toolbar: (props) => (
                   <div className="flex justify-between items-center mb-4 p-4 bg-muted rounded-lg">
@@ -443,29 +528,41 @@ const CalendarView = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">Employee</Label>
+                  <Label className="text-sm font-medium">👤 Employee</Label>
                   <p className="text-sm text-muted-foreground">
-                    {employees.find(emp => emp.employee_id === selectedEvent.employee_id)?.name || selectedEvent.employee_id}
+                    {selectedEvent.employee_name || selectedEvent.employee_id}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Dept: {selectedEvent.department || 'N/A'}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Product</Label>
+                  <Label className="text-sm font-medium">🏭 Product</Label>
                   <p className="text-sm text-muted-foreground">
-                    {products.find(prod => prod.product_code === selectedEvent.product_code)?.name || selectedEvent.product_code}
+                    {selectedEvent.product_name || selectedEvent.product_code}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Priority: {selectedEvent.product_priority || 'N/A'}
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">Start Time</Label>
+                  <Label className="text-sm font-medium">⏰ Start Time</Label>
                   <p className="text-sm text-muted-foreground">
-                    {moment(selectedEvent.start_time).format('MMM DD, YYYY HH:mm')}
+                    {moment(selectedEvent.start_time).format('MMM DD, HH:mm')}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">End Time</Label>
+                  <Label className="text-sm font-medium">🏁 End Time</Label>
                   <p className="text-sm text-muted-foreground">
-                    {moment(selectedEvent.end_time).format('MMM DD, YYYY HH:mm')}
+                    {moment(selectedEvent.end_time).format('MMM DD, HH:mm')}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">⏱️ Duration</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {moment.duration(moment(selectedEvent.end_time).diff(moment(selectedEvent.start_time))).asHours().toFixed(1)}h
                   </p>
                 </div>
               </div>

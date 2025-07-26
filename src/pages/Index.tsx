@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import DataUploader from "@/components/DataUploader";
 import ChatWindow from "@/components/ChatWindow";
 import CalendarView from "@/components/CalendarView";
-import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import SimpleAnalytics from "@/components/SimpleAnalytics";
 import { Database, MessageCircle, Calendar, BarChart3 } from "lucide-react";
 
 const Index = () => {
@@ -95,7 +95,7 @@ const Index = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <AnalyticsDashboard />
+                <SimpleAnalytics />
               </CardContent>
             </Card>
           </TabsContent>

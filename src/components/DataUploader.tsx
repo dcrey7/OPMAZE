@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, FileSpreadsheet, Download, RefreshCw } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, RefreshCw, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { insertSampleData, clearAllData } from "@/utils/sampleData";
 import * as XLSX from 'xlsx';
 
 const DataUploader = () => {
@@ -101,8 +102,89 @@ const DataUploader = () => {
     XLSX.writeFile(wb, `${filename}.xlsx`);
   };
 
+  const handleInsertSampleData = async () => {
+    setUploading(true);
+    try {
+      const result = await insertSampleData();
+      if (result.success) {
+        toast({
+          title: "✅ Database Reset Complete!",
+          description: "All old data cleared. Fresh demo data inserted successfully.",
+        });
+        loadData();
+        // Clear localStorage optimization stats
+        localStorage.removeItem('optimizationStats');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    if (!confirm("⚠️ This will DELETE ALL DATA from your database. Are you sure?")) {
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const result = await clearAllData();
+      if (result.success) {
+        toast({
+          title: "🗑️ All Data Cleared",
+          description: "Database has been completely cleared.",
+        });
+        loadData();
+        // Clear localStorage optimization stats
+        localStorage.removeItem('optimizationStats');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Clear Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Database Control Buttons */}
+      <div className="flex justify-center gap-4 mb-6">
+        <Button 
+          onClick={handleInsertSampleData}
+          disabled={uploading}
+          variant="default"
+          className="bg-green-600 hover:bg-green-700"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          🔄 Reset & Insert Demo Data
+        </Button>
+        <Button 
+          onClick={handleClearAllData}
+          disabled={uploading}
+          variant="destructive"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          🗑️ Clear All Data
+        </Button>
+      </div>
+      
+      <div className="text-center text-sm text-muted-foreground mb-4">
+        <p>⚠️ <strong>Recommended:</strong> Use "Reset & Insert Demo Data" to clear existing data and add fresh sample data for optimization testing.</p>
+      </div>
+
       {/* Upload Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[

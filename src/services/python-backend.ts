@@ -1,4 +1,4 @@
-const PYTHON_BACKEND_URL = 'http://localhost:5000';
+const PYTHON_BACKEND_URL = import.meta.env.VITE_PYTHON_BACKEND_URL || 'http://localhost:5000';
 
 export interface ExecutionResult {
   success: boolean;
@@ -17,6 +17,8 @@ export interface ScheduleOptimizationResult {
 
 export const executePythonScript = async (script: string, data: any = {}): Promise<ExecutionResult> => {
   try {
+    console.log('Executing Python script via:', `${PYTHON_BACKEND_URL}/execute-optimization`);
+    
     const response = await fetch(`${PYTHON_BACKEND_URL}/execute-optimization`, {
       method: 'POST',
       headers: {
@@ -28,12 +30,17 @@ export const executePythonScript = async (script: string, data: any = {}): Promi
       })
     });
 
+    console.log('Response status:', response.status, response.statusText);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to execute Python script');
+      const errorText = await response.text();
+      console.error('Backend error response:', errorText);
+      throw new Error(`Backend error: ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Python execution result:', result);
+    return result;
   } catch (error: any) {
     console.error('Python execution error:', error);
     return {
